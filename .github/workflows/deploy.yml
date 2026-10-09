@@ -1,42 +1,59 @@
 name: Deploy to GitHub Pages
+
 on:
   push:
-    branches: [ main ] # 只有main分支推送代码，才触发打包部署
-  workflow_dispatch: # 支持在Github网页手动点按钮触发部署
+    branches: [ main ]
+  workflow_dispatch:
+
+# Pages 部署需要的权限
 permissions:
   contents: read
   pages: write
   id-token: write
+
+# 确保只有一个部署任务同时运行
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout 拉取代码
-        uses: actions/checkout@v4
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - name: Checkout
+        uses: actions/checkout@v7
+      
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
-          cache: 'pnpm'
-      - name: 安装依赖
-        run: pnpm install
-      - name: 打包构建
-        run: pnpm build
-      - name: 上传打包产物dist
-        uses: actions/upload-pages-artifact@v3
+          node-version: '24'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
         with:
-          path: ./dist
+          run_install: false
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build site
+        run: pnpm run build
+
+      - name: Create .nojekyll file
+        run: touch dist/.nojekyll
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist  # Astro默认构建输出目录
+
   deploy:
-    needs: build
-    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
     steps:
-      - name: 部署到Github Pages
+      - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
